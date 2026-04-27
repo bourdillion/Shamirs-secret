@@ -46,7 +46,15 @@ impl Field for SimpleField {
     }
 
     fn mul_inverse(self) -> Self {
-        SimpleField { value: 1, prime: 1 }
+        // From Fermat little theory a^(p-2) ≡ a^(-1) (mod p),
+        // where exp = p-1
+        // a = self.value and p = self.prime
+        let exp = self.prime - 2;
+        let inverse = SimpleField::exp_inverse(self.value, exp, self.prime);
+        SimpleField {
+            value: inverse,
+            prime: self.prime,
+        }
     }
 
     fn multiply(self, x: Self) -> Self {
@@ -79,6 +87,122 @@ impl Field for SimpleField {
         SimpleField {
             value: 0,
             prime: prime,
+        }
+    }
+}
+
+impl SimpleField {
+    //Use ferman little theory to calculate inverse.
+    fn exp_inverse(mut base: u64, mut exp: u64, modulus: u64) -> u64 {
+        let mut result: u64 = 1;
+        base %= modulus;
+
+        while exp > 0 {
+            if exp % 2 == 1 {
+                result = (result * base) % modulus;
+            }
+
+            exp >>= 1;
+            base = (base * base) % modulus;
+        }
+
+        result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    //Helper function to create simple field
+    fn make(value: u64) -> SimpleField {
+        SimpleField { value, prime: 17 }
+    }
+
+    #[test]
+    fn test_add() {
+        let a = make(5);
+        let b = make(3);
+        let result = a.add(b);
+
+        assert_eq!(result.value, 8);
+    }
+
+    #[test]
+    fn test_subtract_aoverb() {
+        let a = make(5);
+        let b = make(3);
+        let result = a.subtract(b);
+
+        assert_eq!(result.value, 2);
+    }
+
+    #[test]
+    fn test_subtract_bovera() {
+        let a = make(3);
+        let b = make(5);
+        let result = a.subtract(b);
+
+        assert_eq!(result.value, 15);
+    }
+
+    #[test]
+    fn test_multiply() {
+        let a = make(5);
+        let b = make(3);
+        let result = a.multiply(b);
+
+        assert_eq!(result.value, 15);
+    }
+
+    #[test]
+    fn test_divide() {
+        let a = make(5);
+        let b = make(3);
+        let result = a.division(b);
+
+        assert_eq!(result.value, 13);
+    }
+
+    proptest! {
+        #[test]
+        fn add_then_subtract_is_identity(a in 0u64..17, b in 0u64..17) {
+            let result = make(a).add(make(b)).subtract(make(b));
+            assert_eq!(result.value, a);
+        }
+
+        #[test]
+        fn multiply_then_divide_is_identity(a in 0u64..17, b in 1u64..17) {
+            let result = make(a).multiply(make(b)).division(make(b));
+            assert_eq!(result.value, a);
+        }
+
+        #[test]
+        fn inverse_times_self_is_one(a in 1u64..17) {
+            let result = make(a).multiply(make(a).mul_inverse());
+            assert_eq!(result.value, 1);
+        }
+
+        #[test]
+        fn addition_is_commutative(a in 0u64..17, b in 0u64..17) {
+            let r1 = make(a).add(make(b));
+            let r2 = make(b).add(make(a));
+            assert_eq!(r1.value, r2.value);
+        }
+
+        #[test]
+        fn multiplication_is_commutative(a in 0u64..17, b in 0u64..17) {
+            let r1 = make(a).multiply(make(b));
+            let r2 = make(b).multiply(make(a));
+            assert_eq!(r1.value, r2.value);
+        }
+
+        #[test]
+        fn result_stays_in_field(a in 0u64..17, b in 0u64..17) {
+            assert!(make(a).add(make(b)).value < 17);
+            assert!(make(a).subtract(make(b)).value < 17);
+            assert!(make(a).multiply(make(b)).value < 17);
         }
     }
 }
