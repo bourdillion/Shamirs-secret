@@ -5,6 +5,19 @@ struct Polynomial<F: Field + Copy + Clone> {
 }
 
 impl<F: Field + Copy + Clone> Polynomial<F> {
+    fn new(secret: F, degree: usize, prime: u64) -> Self {
+        //start with the secret at index 0.
+        let mut result = vec![secret];
+        //loop through random coefficient and add to the vector
+        for _ in 0..degree {
+            let rand = F::random(prime);
+            result.push(rand);
+        }
+        Polynomial {
+            coefficients: result,
+        }
+    }
+
     //using horner's principle to evaluate polynomials
     fn evaluate(&self, x: F) -> F
     where
@@ -31,6 +44,26 @@ mod test {
 
     fn make(value: u64) -> SimpleField {
         SimpleField { value, prime: 17 }
+    }
+
+    #[test]
+    fn test_new_secret_is_first() {
+        let poly = Polynomial::new(make(7), 2, 17);
+        assert_eq!(poly.coefficients[0].value, 7);
+    }
+
+    #[test]
+    fn test_new_correct_length() {
+        let poly = Polynomial::new(make(7), 2, 17);
+        assert_eq!(poly.coefficients.len(), 3);
+    }
+
+    #[test]
+    fn test_new_all_values_in_field() {
+        let poly = Polynomial::new(make(7), 4, 17);
+        for coeff in &poly.coefficients {
+            assert!(coeff.value < 17);
+        }
     }
 
     #[test]
@@ -64,5 +97,33 @@ mod test {
         };
         let result = polnoms.evaluate(make(4));
         assert_eq!(result.value, 3);
+    }
+
+    #[test]
+    fn test_new_then_evaluate_secret_at_zero() {
+        let poly = Polynomial::new(make(7), 2, 17);
+        let result = poly.evaluate(make(0));
+        assert_eq!(result.value, 7);
+    }
+
+    #[test]
+    fn test_new_then_evaluate_stays_in_field() {
+        let poly = Polynomial::new(make(7), 3, 17);
+        for x in 1..=5 {
+            let result = poly.evaluate(make(x));
+            assert!(result.value < 17);
+        }
+    }
+
+    #[test]
+    fn test_new_then_evaluate_different_x_values() {
+        let poly = Polynomial::new(make(7), 2, 17);
+        let y1 = poly.evaluate(make(1));
+        let y2 = poly.evaluate(make(2));
+        let y3 = poly.evaluate(make(3));
+        // All results should be valid field elements
+        assert!(y1.value < 17);
+        assert!(y2.value < 17);
+        assert!(y3.value < 17);
     }
 }
