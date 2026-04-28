@@ -1,11 +1,11 @@
 use crate::field::Field;
 
-struct Polynomial<F: Field + Copy + Clone> {
+pub struct Polynomial<F: Field + Copy + Clone> {
     coefficients: Vec<F>,
 }
 
 impl<F: Field + Copy + Clone> Polynomial<F> {
-    fn new(secret: F, degree: usize, prime: u64) -> Self {
+    pub fn new(secret: F, degree: usize, prime: u64) -> Self {
         //start with the secret at index 0.
         let mut result = vec![secret];
         //loop through random coefficient and add to the vector
@@ -19,7 +19,7 @@ impl<F: Field + Copy + Clone> Polynomial<F> {
     }
 
     //using horner's principle to evaluate polynomials
-    fn evaluate(&self, x: F) -> F
+    pub fn evaluate(&self, x: F) -> F
     where
         F: Field + Copy + Clone,
     {
