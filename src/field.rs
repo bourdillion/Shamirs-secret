@@ -14,6 +14,8 @@ pub trait Field: Sized {
         self.multiply(x_inverse)
     }
 
+    fn prime(&self) -> u64;
+
     fn zero(x: u64) -> Self;
 
     fn one(x: u64) -> Self;
@@ -21,9 +23,10 @@ pub trait Field: Sized {
     fn random(x: u64) -> Self;
 }
 
-struct SimpleField {
-    value: u64,
-    prime: u64,
+#[derive(Copy, Clone)]
+pub struct SimpleField {
+    pub value: u64,
+    pub prime: u64,
 }
 
 impl Field for SimpleField {
@@ -63,6 +66,10 @@ impl Field for SimpleField {
             value: value_mul,
             prime: self.prime,
         }
+    }
+
+    fn prime(&self) -> u64 {
+        self.prime
     }
 
     fn one(prime: u64) -> Self {
