@@ -1,5 +1,8 @@
-use crate::field::{Field, SimpleField};
+use crate::field::Field;
 use crate::polynomial::Polynomial;
+
+/// A point (x, y) on the polynomial curve, given to a participant.
+#[derive(Copy, Clone)]
 struct Share<F: Field + Copy + Clone + PartialEq> {
     x: F,
     y: F,
@@ -67,9 +70,82 @@ mod tests {
     #[test]
     fn test_full_round_trip() {
         let shares = Share::split(make(7), 3, 5, 17);
-        // Take only the first 3 shares (the threshold)
         let subset: Vec<Share<SimpleField>> = shares.into_iter().take(3).collect();
         let secret = Share::reconstruct(subset, 17);
         assert_eq!(secret.value, 7);
+    }
+
+    #[test]
+    fn test_round_trip_different_subset() {
+        let shares = Share::split(make(7), 3, 5, 17);
+        let subset: Vec<Share<SimpleField>> = vec![shares[1], shares[3], shares[4]];
+        let secret = Share::reconstruct(subset, 17);
+        assert_eq!(secret.value, 7);
+    }
+
+    #[test]
+    fn test_round_trip_exact_threshold() {
+        let shares = Share::split(make(10), 2, 3, 17);
+        let subset: Vec<Share<SimpleField>> = shares.into_iter().take(2).collect();
+        let secret = Share::reconstruct(subset, 17);
+        assert_eq!(secret.value, 10);
+    }
+
+    #[test]
+    fn test_round_trip_all_shares() {
+        let shares = Share::split(make(7), 3, 5, 17);
+        let secret = Share::reconstruct(shares, 17);
+        assert_eq!(secret.value, 7);
+    }
+
+    #[test]
+    fn test_round_trip_secret_zero() {
+        let shares = Share::split(make(0), 3, 5, 17);
+        let subset: Vec<Share<SimpleField>> = shares.into_iter().take(3).collect();
+        let secret = Share::reconstruct(subset, 17);
+        assert_eq!(secret.value, 0);
+    }
+
+    #[test]
+    fn test_round_trip_different_secret() {
+        let shares = Share::split(make(13), 3, 5, 17);
+        let subset: Vec<Share<SimpleField>> = shares.into_iter().take(3).collect();
+        let secret = Share::reconstruct(subset, 17);
+        assert_eq!(secret.value, 13);
+    }
+
+    #[test]
+    fn test_round_trip_larger_prime() {
+        fn make_29(value: u64) -> SimpleField {
+            SimpleField { value, prime: 29 }
+        }
+        let shares = Share::split(make_29(19), 3, 5, 29);
+        let subset: Vec<Share<SimpleField>> = shares.into_iter().take(3).collect();
+        let secret = Share::reconstruct(subset, 29);
+        assert_eq!(secret.value, 19);
+    }
+
+    #[test]
+    fn test_below_threshold_fails() {
+        let mut wrong_count = 0;
+        for _ in 0..10 {
+            let shares = Share::split(make(7), 3, 5, 17);
+            let subset: Vec<Share<SimpleField>> = shares.into_iter().take(2).collect();
+            let secret = Share::reconstruct(subset, 17);
+            if secret.value != 7 {
+                wrong_count += 1;
+            }
+        }
+        assert!(wrong_count > 5);
+    }
+
+    #[test]
+    fn test_shares_are_unique() {
+        let shares = Share::split(make(7), 3, 5, 17);
+        for i in 0..shares.len() {
+            for j in (i + 1)..shares.len() {
+                assert_ne!(shares[i].x.value, shares[j].x.value);
+            }
+        }
     }
 }
