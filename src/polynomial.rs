@@ -1,10 +1,14 @@
 use crate::field::Field;
 
+/// This struct represents a polynomial over a finite field.
+/// Coefficients are stored lowest degree first from [a₀, a₁, a₂] = a₀ + a₁x + a₂x²
 pub struct Polynomial<F: Field + Copy + Clone> {
     coefficients: Vec<F>,
 }
 
 impl<F: Field + Copy + Clone> Polynomial<F> {
+    /// Creates a random polynomial with the secret as the constant term (a₀).
+    /// degree equals threshold - 1, so t shares can reconstruct the secret.
     pub fn new(secret: F, degree: usize, prime: u64) -> Self {
         //start with the secret at index 0.
         let mut result = vec![secret];
@@ -18,7 +22,9 @@ impl<F: Field + Copy + Clone> Polynomial<F> {
         }
     }
 
-    //using horner's principle to evaluate polynomials
+    ///using horner's principle to evaluate polynomials
+    /// For example f(x) = 7 + 3x - x², Horner rewrites it as 7 + x*(3 + x*(-1)),
+    /// processing coefficients from highest degree to lowest.
     pub fn evaluate(&self, x: F) -> F
     where
         F: Field + Copy + Clone,

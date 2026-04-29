@@ -23,7 +23,7 @@ pub trait Field: Sized {
     fn random(x: u64) -> Self;
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct SimpleField {
     pub value: u64,
     pub prime: u64,
