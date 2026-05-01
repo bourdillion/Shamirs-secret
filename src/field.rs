@@ -117,6 +117,58 @@ impl SimpleField {
     }
 }
 
+pub fn is_prime(n: u64) -> bool {
+    if n < 2 {
+        return false;
+    }
+    if n < 4 {
+        return true;
+    }
+    if n % 2 == 0 || n % 3 == 0 {
+        return false;
+    }
+    let mut i = 5;
+    while i * i <= n {
+        if n % i == 0 || n % (i + 2) == 0 {
+            return false;
+        }
+        i += 6;
+    }
+    true
+}
+
+impl std::ops::Add for SimpleField {
+    type Output = Self;
+
+    fn add(self, rhs: SimpleField) -> SimpleField {
+        Field::add(self, rhs)
+    }
+}
+
+impl std::ops::Sub for SimpleField {
+    type Output = Self;
+
+    fn sub(self, rhs: SimpleField) -> SimpleField {
+        Field::subtract(self, rhs)
+    }
+}
+
+impl std::ops::Mul for SimpleField {
+    type Output = Self;
+
+    fn mul(self, rhs: SimpleField) -> SimpleField {
+        Field::multiply(self, rhs)
+    }
+}
+
+impl std::ops::Div for SimpleField {
+    type Output = Self;
+
+    fn div(self, rhs: SimpleField) -> SimpleField {
+        Field::division(self, rhs)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

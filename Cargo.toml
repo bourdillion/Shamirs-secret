@@ -6,6 +6,8 @@ edition = "2024"
 [dependencies]
 proptest = "1.11.0"
 rand = "0.10.1"
+thiserror = "1"
 
 [dev-dependencies]
 proptest = "1.11.0"
+thiserror = "1"
