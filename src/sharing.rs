@@ -1,9 +1,11 @@
+use serde::{Deserialize, Serialize};
+
 use crate::error::ShamirError;
 use crate::field::{Field, is_prime};
 use crate::polynomial::Polynomial;
 
 /// Share is a point (x, y) on the polynomial curve, given to a participant.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct Share<F: Field + Copy + Clone + PartialEq> {
     pub x: F,
     pub y: F,
@@ -222,5 +224,17 @@ mod tests {
         };
         let result = Share::reconstruct(vec![share_a, share_b], 17);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_share_serialization() {
+        let share = Share {
+            x: make(3),
+            y: make(9),
+        };
+        let json = serde_json::to_string(&share).unwrap();
+        let recovered: Share<SimpleField> = serde_json::from_str(&json).unwrap();
+        assert_eq!(recovered.x.value, 3);
+        assert_eq!(recovered.y.value, 9);
     }
 }

@@ -1,4 +1,5 @@
 use rand::RngExt;
+use serde::{Deserialize, Serialize};
 
 pub trait Field: Sized {
     fn add(self, x: Self) -> Self;
@@ -23,7 +24,7 @@ pub trait Field: Sized {
     fn random(x: u64) -> Self;
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SimpleField {
     pub value: u64,
     pub prime: u64,
