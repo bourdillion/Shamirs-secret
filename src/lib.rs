@@ -1,3 +1,4 @@
+mod dkg;
 mod error;
 mod feldman;
 mod field;
