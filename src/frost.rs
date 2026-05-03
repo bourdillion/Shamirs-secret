@@ -1,7 +1,7 @@
 use crate::schnorr::compute_challenge;
 use ark_bls12_381::{Fr, G1Projective};
 use ark_ec::PrimeGroup;
-use ark_ff::UniformRand;
+use ark_ff::{One, UniformRand, Zero};
 
 struct SignerNonce {
     index: u64,
@@ -36,14 +36,32 @@ impl PartialSignature {
         all_nonces: &[SignerNonce],
         group_public_key: &G1Projective,
         message: &[u8],
-    ) {
-        //first get the sum of all public nonces
-        let r = all_nonces[0].nonce;
-        for nonce in &all_nonces[1..] {
-            r + nonce.nonce;
+    ) -> Self {
+        // 1. Sum all public nonces into one R
+        let mut r = all_nonces[0].nonce;
+        for n in &all_nonces[1..] {
+            r = r + n.nonce;
         }
 
-        //next, compute a challenge with the helper function for this nonce sum
+        // 2. Compute challenge
         let c = compute_challenge(&r, group_public_key, message);
+
+        // 3. Compute Lagrange coefficient for this signer
+        let mut lambda = Fr::from(1u64);
+        for other in all_nonces {
+            if other.index != nonce.index {
+                let num = Fr::from(0u64) - Fr::from(other.index);
+                let den = Fr::from(nonce.index) - Fr::from(other.index);
+                lambda = lambda * num / den;
+            }
+        }
+
+        // 4. Compute partial signature: s_i = k_i + c * lambda * key_share
+        let s_i = nonce.secret_nonce + c * lambda * key_share;
+
+        PartialSignature {
+            index: nonce.index,
+            response: s_i,
+        }
     }
 }
