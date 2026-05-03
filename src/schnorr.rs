@@ -41,12 +41,12 @@ impl KeyPair {
 }
 
 pub struct Signature {
-    nonce: G1Projective,
-    response: Fr,
+    pub nonce: G1Projective,
+    pub response: Fr,
 }
 
 impl Signature {
-    fn verify(&self, public_key: &G1Projective, message: &[u8]) -> bool {
+    pub fn verify(&self, public_key: &G1Projective, message: &[u8]) -> bool {
         //verifying is done by g * s == r + x * c
         let s = self.response;
         let g = G1Projective::generator();

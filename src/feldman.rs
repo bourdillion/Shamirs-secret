@@ -5,7 +5,7 @@ use crate::sharing::Share;
 use ark_bls12_381::{Fr, G1Projective};
 use ark_ec::{CurveGroup, PrimeGroup};
 
-struct Commitment {
+pub struct Commitment {
     pub points: Vec<G1Projective>,
 }
 

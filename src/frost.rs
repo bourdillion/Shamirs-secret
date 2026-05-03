@@ -1,4 +1,4 @@
-use crate::schnorr::compute_challenge;
+use crate::schnorr::{Signature, compute_challenge};
 use ark_bls12_381::{Fr, G1Projective};
 use ark_ec::PrimeGroup;
 use ark_ff::{One, UniformRand, Zero};
@@ -37,16 +37,16 @@ impl PartialSignature {
         group_public_key: &G1Projective,
         message: &[u8],
     ) -> Self {
-        // 1. Sum all public nonces into one R
+        // Sum all public nonces into one R
         let mut r = all_nonces[0].nonce;
         for n in &all_nonces[1..] {
             r = r + n.nonce;
         }
 
-        // 2. Compute challenge
+        //Compute challenge
         let c = compute_challenge(&r, group_public_key, message);
 
-        // 3. Compute Lagrange coefficient for this signer
+        // Compute Lagrange coefficient for this signer
         let mut lambda = Fr::from(1u64);
         for other in all_nonces {
             if other.index != nonce.index {
@@ -56,12 +56,185 @@ impl PartialSignature {
             }
         }
 
-        // 4. Compute partial signature: s_i = k_i + c * lambda * key_share
+        // Compute partial signature: s_i = k_i + c * lambda * key_share
         let s_i = nonce.secret_nonce + c * lambda * key_share;
 
         PartialSignature {
             index: nonce.index,
             response: s_i,
         }
+    }
+
+    pub fn aggregate(partial_sigs: &[PartialSignature], all_nonces: &[SignerNonce]) -> Signature {
+        // Sum all public nonces into one R
+        let mut r = all_nonces[0].nonce;
+        for n in &all_nonces[1..] {
+            r = r + n.nonce;
+        }
+
+        // Sum all partial responses as well
+        let mut s = partial_sigs[0].response;
+        for ps in &partial_sigs[1..] {
+            s = s + ps.response;
+        }
+
+        Signature {
+            nonce: r,
+            response: s,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::feldman::Commitment;
+    use crate::field::{BlsScalar, Field};
+    use crate::schnorr::Signature;
+    use crate::sharing::Share;
+
+    #[test]
+    fn test_frost_full_flow() {
+        // 1. Create group private key and derive group public key
+        let group_private_key = Fr::from(42u64);
+        let group_public_key = G1Projective::generator() * group_private_key;
+
+        // 2. Split private key into 5 shares (threshold = 3)
+        let secret = BlsScalar {
+            value: group_private_key,
+        };
+        let (shares, _commitment) =
+            Commitment::split_with_commitments(secret, 3, 5, G1Projective::generator()).unwrap();
+
+        // 3. Pick signers 1, 2, 3 and generate nonces (Round 1)
+        let nonce1 = SignerNonce::generate(1);
+        let nonce2 = SignerNonce::generate(2);
+        let nonce3 = SignerNonce::generate(3);
+        let all_nonces = vec![nonce1, nonce2, nonce3];
+
+        let message = b"send 1 ETH to Bob";
+
+        // 4. Each signer computes partial signature (Round 2)
+        //    Share indices match nonce indices: share[0] has x=1, share[1] has x=2, etc.
+        let ps1 = PartialSignature::sign(
+            &all_nonces[0],
+            &shares[0].y.value,
+            &all_nonces,
+            &group_public_key,
+            message,
+        );
+        let ps2 = PartialSignature::sign(
+            &all_nonces[1],
+            &shares[1].y.value,
+            &all_nonces,
+            &group_public_key,
+            message,
+        );
+        let ps3 = PartialSignature::sign(
+            &all_nonces[2],
+            &shares[2].y.value,
+            &all_nonces,
+            &group_public_key,
+            message,
+        );
+
+        // 5. Aggregate partial signatures into one Schnorr signature
+        let partial_sigs = vec![ps1, ps2, ps3];
+        let signature = PartialSignature::aggregate(&partial_sigs, &all_nonces);
+
+        // 6. Verify using standard Schnorr verification
+        assert!(signature.verify(&group_public_key, message));
+    }
+
+    #[test]
+    fn test_frost_wrong_message_fails() {
+        let group_private_key = Fr::from(42u64);
+        let group_public_key = G1Projective::generator() * group_private_key;
+
+        let secret = BlsScalar {
+            value: group_private_key,
+        };
+        let (shares, _commitment) =
+            Commitment::split_with_commitments(secret, 3, 5, G1Projective::generator()).unwrap();
+
+        let nonce1 = SignerNonce::generate(1);
+        let nonce2 = SignerNonce::generate(2);
+        let nonce3 = SignerNonce::generate(3);
+        let all_nonces = vec![nonce1, nonce2, nonce3];
+
+        let ps1 = PartialSignature::sign(
+            &all_nonces[0],
+            &shares[0].y.value,
+            &all_nonces,
+            &group_public_key,
+            b"send 1 ETH",
+        );
+        let ps2 = PartialSignature::sign(
+            &all_nonces[1],
+            &shares[1].y.value,
+            &all_nonces,
+            &group_public_key,
+            b"send 1 ETH",
+        );
+        let ps3 = PartialSignature::sign(
+            &all_nonces[2],
+            &shares[2].y.value,
+            &all_nonces,
+            &group_public_key,
+            b"send 1 ETH",
+        );
+
+        let partial_sigs = vec![ps1, ps2, ps3];
+        let signature = PartialSignature::aggregate(&partial_sigs, &all_nonces);
+
+        // Verify against a DIFFERENT message should fail
+        assert!(!signature.verify(&group_public_key, b"send 100 ETH"));
+    }
+
+    #[test]
+    fn test_frost_different_signers() {
+        let group_private_key = Fr::from(99u64);
+        let group_public_key = G1Projective::generator() * group_private_key;
+
+        let secret = BlsScalar {
+            value: group_private_key,
+        };
+        let (shares, _commitment) =
+            Commitment::split_with_commitments(secret, 3, 5, G1Projective::generator()).unwrap();
+
+        // Use signers 2, 4, 5 instead of 1, 2, 3
+        let nonce2 = SignerNonce::generate(2);
+        let nonce4 = SignerNonce::generate(4);
+        let nonce5 = SignerNonce::generate(5);
+        let all_nonces = vec![nonce2, nonce4, nonce5];
+
+        let message = b"approve block 12345";
+
+        let ps2 = PartialSignature::sign(
+            &all_nonces[0],
+            &shares[1].y.value,
+            &all_nonces,
+            &group_public_key,
+            message,
+        );
+        let ps4 = PartialSignature::sign(
+            &all_nonces[1],
+            &shares[3].y.value,
+            &all_nonces,
+            &group_public_key,
+            message,
+        );
+        let ps5 = PartialSignature::sign(
+            &all_nonces[2],
+            &shares[4].y.value,
+            &all_nonces,
+            &group_public_key,
+            message,
+        );
+
+        let partial_sigs = vec![ps2, ps4, ps5];
+        let signature = PartialSignature::aggregate(&partial_sigs, &all_nonces);
+
+        assert!(signature.verify(&group_public_key, message));
     }
 }
