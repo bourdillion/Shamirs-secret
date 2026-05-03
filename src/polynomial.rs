@@ -3,7 +3,7 @@ use crate::field::Field;
 /// This struct represents a polynomial over a finite field.
 /// Coefficients are stored lowest degree first from [a₀, a₁, a₂] = a₀ + a₁x + a₂x²
 pub struct Polynomial<F: Field + Copy + Clone> {
-    coefficients: Vec<F>,
+    pub coefficients: Vec<F>,
 }
 
 impl<F: Field + Copy + Clone> Polynomial<F> {
@@ -40,6 +40,10 @@ impl<F: Field + Copy + Clone> Polynomial<F> {
         }
 
         result
+    }
+
+    pub fn get_coefficients(&self) -> &Vec<F> {
+        &self.coefficients
     }
 }
 

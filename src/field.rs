@@ -1,3 +1,5 @@
+use ark_bls12_381::Fr;
+use ark_ff::{Field as ArkField, UniformRand};
 use rand::RngExt;
 use serde::{Deserialize, Serialize};
 
@@ -170,6 +172,62 @@ impl std::ops::Div for SimpleField {
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub struct BlsScalar {
+    pub value: Fr,
+}
+
+impl Field for BlsScalar {
+    fn add(self, x: Self) -> Self {
+        BlsScalar {
+            value: self.value + x.value,
+        }
+    }
+
+    fn subtract(self, x: Self) -> Self {
+        BlsScalar {
+            value: self.value - x.value,
+        }
+    }
+
+    fn multiply(self, x: Self) -> Self {
+        BlsScalar {
+            value: self.value * x.value,
+        }
+    }
+
+    fn division(self, x: Self) -> Self {
+        BlsScalar {
+            value: self.value / x.value,
+        }
+    }
+
+    fn zero(_prime: u64) -> Self {
+        BlsScalar { value: Fr::from(0) }
+    }
+
+    fn one(_prime: u64) -> Self {
+        BlsScalar { value: Fr::from(1) }
+    }
+
+    fn mul_inverse(self) -> Self {
+        BlsScalar {
+            value: self.value.inverse().unwrap(),
+        }
+    }
+
+    fn random(_prime: u64) -> Self {
+        let mut rng = rand_core::OsRng;
+        BlsScalar {
+            value: Fr::rand(&mut rng),
+        }
+    }
+
+    fn prime(&self) -> u64 {
+        0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -223,6 +281,45 @@ mod tests {
         let result = a.division(b);
 
         assert_eq!(result.value, 13);
+    }
+
+    #[test]
+    fn test_bls_round_trip() {
+        use crate::sharing::Share;
+
+        let secret = BlsScalar {
+            value: Fr::from(42),
+        };
+        let shares = Share::split(secret, 3, 5, 0).unwrap();
+        let subset: Vec<Share<BlsScalar>> = shares.into_iter().take(3).collect();
+        let recovered = Share::reconstruct(subset, 0).unwrap();
+        assert_eq!(recovered.value, Fr::from(42));
+    }
+
+    #[test]
+    fn test_bls_different_subset() {
+        use crate::sharing::Share;
+
+        let secret = BlsScalar {
+            value: Fr::from(42),
+        };
+        let shares = Share::split(secret, 3, 5, 0).unwrap();
+        let subset: Vec<Share<BlsScalar>> = vec![shares[0], shares[2], shares[4]];
+        let recovered = Share::reconstruct(subset, 0).unwrap();
+        assert_eq!(recovered.value, Fr::from(42));
+    }
+
+    #[test]
+    fn test_bls_large_secret() {
+        use crate::sharing::Share;
+
+        let secret = BlsScalar {
+            value: Fr::from(123456789u64),
+        };
+        let shares = Share::split(secret, 3, 5, 0).unwrap();
+        let subset: Vec<Share<BlsScalar>> = shares.into_iter().take(3).collect();
+        let recovered = Share::reconstruct(subset, 0).unwrap();
+        assert_eq!(recovered.value, Fr::from(123456789u64));
     }
 
     proptest! {

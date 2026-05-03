@@ -32,7 +32,7 @@ impl<F: Field + Copy + Clone + PartialEq> Share<F> {
             return Err(ShamirError::InvalidShareNumber);
         }
 
-        if !is_prime(prime) {
+        if prime != 0 && !is_prime(prime) {
             return Err(ShamirError::NonPrimeModulus);
         }
 
@@ -59,8 +59,13 @@ impl<F: Field + Copy + Clone + PartialEq> Share<F> {
 
     /// Recovers the secret from shares using Lagrange interpolation at x = 0.
     pub fn reconstruct(shares: Vec<Share<F>>, prime: u64) -> Result<F, ShamirError> {
+        //sanity checks
         if shares.is_empty() {
             return Err(ShamirError::ZeroShareNumber);
+        }
+
+        if prime != 0 && !is_prime(prime) {
+            return Err(ShamirError::NonPrimeModulus);
         }
 
         // Check for duplicate x values
