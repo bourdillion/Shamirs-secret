@@ -5,12 +5,15 @@ use crate::sharing::Share;
 use ark_bls12_381::{Fr, G1Projective};
 use ark_ec::{CurveGroup, PrimeGroup};
 
+/// Feldman commitment to a polynomial, enabling verifiable secret sharing.
 #[derive(Clone)]
 pub struct Commitment {
     pub points: Vec<G1Projective>,
 }
 
 impl Commitment {
+    /// Commits to a polynomial by multiplying each coefficient by the generator.
+    /// C_i = a_i * G for each coefficient a_i.
     pub fn commit(poly: &Polynomial<BlsScalar>, generator: G1Projective) -> Commitment {
         let mut result = Vec::new();
 
@@ -22,6 +25,8 @@ impl Commitment {
         Commitment { points: result }
     }
 
+    /// Verifies a share against a commitment.
+    /// Checks that y*G == C_0 + x*C_1 + x^2*C_2 + ...
     pub fn verify(
         share: &Share<BlsScalar>,
         commitment: &Commitment,
@@ -40,6 +45,7 @@ impl Commitment {
         left_result == right_result
     }
 
+    /// Splits a secret into shares and produces a Feldman commitment from the same polynomial.
     pub fn split_with_commitments(
         secret: BlsScalar,
         threshold: u64,
@@ -67,11 +73,10 @@ impl Commitment {
 
         for _ in 0..num_shares {
             let temp_result = polynome.evaluate(counter);
-            let perm_result = Share {
+            result.push(Share {
                 x: counter,
                 y: temp_result,
-            };
-            result.push(perm_result);
+            });
             counter = counter.add(one);
         }
 
@@ -83,9 +88,7 @@ impl Commitment {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ark_ec::CurveGroup;
 
-    #[test]
     #[test]
     fn test_feldman_verify_valid_shares() {
         let secret = BlsScalar {
@@ -93,10 +96,8 @@ mod tests {
         };
         let poly = Polynomial::new(secret, 2, 0);
         let generator = G1Projective::generator();
-
         let commitment = Commitment::commit(&poly, generator);
 
-        // Generate shares from the SAME polynomial we committed to
         for i in 1..=5 {
             let x = BlsScalar {
                 value: Fr::from(i as u64),
@@ -114,10 +115,8 @@ mod tests {
         };
         let poly = Polynomial::new(secret, 2, 0);
         let generator = G1Projective::generator();
-
         let commitment = Commitment::commit(&poly, generator);
 
-        // Create a fake share with a made-up y value
         let fake_share = Share {
             x: BlsScalar { value: Fr::from(1) },
             y: BlsScalar {
@@ -134,7 +133,6 @@ mod tests {
             value: Fr::from(42),
         };
         let generator = G1Projective::generator();
-
         let (shares, commitment) =
             Commitment::split_with_commitments(secret, 3, 5, generator).unwrap();
 
@@ -149,7 +147,6 @@ mod tests {
             value: Fr::from(42),
         };
         let generator = G1Projective::generator();
-
         let (shares, _commitment) =
             Commitment::split_with_commitments(secret, 3, 5, generator).unwrap();
 
@@ -164,7 +161,6 @@ mod tests {
             value: Fr::from(42),
         };
         let generator = G1Projective::generator();
-
         let (_shares, commitment) =
             Commitment::split_with_commitments(secret, 3, 5, generator).unwrap();
 
@@ -176,5 +172,32 @@ mod tests {
         };
 
         assert!(!Commitment::verify(&fake, &commitment, generator));
+    }
+
+    #[test]
+    fn test_split_zero_threshold_errors() {
+        let secret = BlsScalar {
+            value: Fr::from(42),
+        };
+        let result = Commitment::split_with_commitments(secret, 0, 5, G1Projective::generator());
+        assert!(matches!(result, Err(ShamirError::ZeroThresholdNumber)));
+    }
+
+    #[test]
+    fn test_split_zero_shares_errors() {
+        let secret = BlsScalar {
+            value: Fr::from(42),
+        };
+        let result = Commitment::split_with_commitments(secret, 3, 0, G1Projective::generator());
+        assert!(matches!(result, Err(ShamirError::ZeroShareNumber)));
+    }
+
+    #[test]
+    fn test_split_threshold_exceeds_shares_errors() {
+        let secret = BlsScalar {
+            value: Fr::from(42),
+        };
+        let result = Commitment::split_with_commitments(secret, 5, 3, G1Projective::generator());
+        assert!(matches!(result, Err(ShamirError::InvalidShareNumber)));
     }
 }
