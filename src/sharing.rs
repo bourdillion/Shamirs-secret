@@ -87,7 +87,7 @@ impl<F: Field + Copy + Clone + PartialEq> Share<F> {
                 if share_j.x != share_i.x {
                     let num = F::zero(prime).subtract(share_j.x);
                     let denom = share_i.x.subtract(share_j.x);
-                    let result_temp = num.division(denom);
+                    let result_temp = num.division(denom).unwrap();
                     basis = basis.multiply(result_temp);
                 }
             }

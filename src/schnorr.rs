@@ -3,16 +3,17 @@ use ark_ec::{CurveGroup, PrimeGroup};
 use ark_ff::{PrimeField, UniformRand};
 use sha2::{Digest, Sha256};
 
+/// A Schnorr keypair over BLS12-381 G1.
 struct KeyPair {
     private_key: Fr,
     public_key: G1Projective,
 }
 
 impl KeyPair {
+    /// Generates a random keypair. x ← random, X = x * G.
     fn generate() -> KeyPair {
         let mut rng = rand_core::OsRng;
         let private_key = Fr::rand(&mut rng);
-
         let public_key = G1Projective::generator() * private_key;
 
         KeyPair {
@@ -21,17 +22,15 @@ impl KeyPair {
         }
     }
 
+    /// Produces a Schnorr signature, k = random number, R = k*G, c = H(R, X, msg), s = k + c*x.
     pub fn sign(&self, message: &[u8]) -> Signature {
-        //Build up the nonce commitment R, from R = K * G
         let mut rng = rand_core::OsRng;
         let k = Fr::rand(&mut rng);
         let g = G1Projective::generator();
         let r = g * k;
 
-        //compute challenge
         let challenge = compute_challenge(&r, &self.public_key, message);
 
-        //sign, basically nonce + challenge * private_key
         let signature = k + challenge * self.private_key;
         Signature {
             nonce: r,
@@ -40,37 +39,33 @@ impl KeyPair {
     }
 }
 
+/// A Schnorr signature (R, s). Also used as the final output of FROST aggregation.
 pub struct Signature {
     pub nonce: G1Projective,
     pub response: Fr,
 }
 
 impl Signature {
+    /// Verifies by checking s*G == R + c*X.
     pub fn verify(&self, public_key: &G1Projective, message: &[u8]) -> bool {
-        //verifying is done by g * s == r + x * c
-        let s = self.response;
         let g = G1Projective::generator();
-        let r = self.nonce;
-        let c = compute_challenge(&r, public_key, message);
-        let x = public_key;
+        let c = compute_challenge(&self.nonce, public_key, message);
 
-        g * s == r + *x * c
+        g * self.response == self.nonce + *public_key * c
     }
 }
 
+/// Fiat-Shamir challenge: c = H(R || X || msg) mapped to Fr.
 pub fn compute_challenge(r: &G1Projective, public_key: &G1Projective, message: &[u8]) -> Fr {
     let mut hasher = Sha256::new();
 
-    // ark uses affine form for serialization, so convert point to bytes for hashing
     let r_affine = r.into_affine();
     let pk_affine = public_key.into_affine();
 
-    // Feed everything into the hash
     hasher.update(format!("{:?}", r_affine).as_bytes());
     hasher.update(format!("{:?}", pk_affine).as_bytes());
     hasher.update(message);
 
-    //convert to Fr
     let hash_bytes = hasher.finalize();
     Fr::from_le_bytes_mod_order(&hash_bytes)
 }

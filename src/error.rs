@@ -34,4 +34,7 @@ pub enum ShamirError {
 
     #[error("Duplicate signer index")]
     DuplicateSignerIndex,
+
+    #[error("Cannot compute inverse of zero")]
+    ZeroInverse,
 }

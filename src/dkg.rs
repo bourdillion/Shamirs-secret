@@ -1,5 +1,4 @@
-use std::hash::BuildHasher;
-
+use crate::error::ShamirError;
 use crate::feldman::Commitment;
 use crate::field::{BlsScalar, Field};
 use crate::polynomial::Polynomial;
@@ -7,6 +6,7 @@ use ark_bls12_381::{Fr, G1Projective};
 use ark_ec::{AdditiveGroup, PrimeGroup};
 use ark_ff::{UniformRand, Zero};
 
+/// A share package sent from one DKG participant to another.
 #[derive(Clone, Debug)]
 pub struct DkgSharePackage {
     sender_index: u64,
@@ -14,6 +14,7 @@ pub struct DkgSharePackage {
     pub share: BlsScalar,
 }
 
+/// The final output each participant derives after the DKG protocol completes.
 #[derive(Clone, Debug)]
 struct DkgResult {
     index: u64,
@@ -22,6 +23,7 @@ struct DkgResult {
     verification_commitment: Vec<G1Projective>,
 }
 
+/// A participant in the DKG protocol holding a random polynomial and its Feldman commitment.
 struct DkgParticipant {
     index: u64,
     threshold: usize,
@@ -30,7 +32,12 @@ struct DkgParticipant {
 }
 
 impl DkgParticipant {
-    pub fn new(index: u64, threshold: usize) -> Self {
+    /// Creates a new participant with a random polynomial and corresponding Feldman commitment.
+    pub fn new(index: u64, threshold: usize) -> Result<Self, ShamirError> {
+        if threshold == 0 {
+            return Err(ShamirError::ZeroThresholdNumber);
+        }
+
         let mut rng = rand_core::OsRng;
         let secret = BlsScalar {
             value: Fr::rand(&mut rng),
@@ -39,18 +46,25 @@ impl DkgParticipant {
         let prime = 0;
 
         let polynomial = Polynomial::new(secret, degree, prime);
-
         let commitment = Commitment::commit(&polynomial, G1Projective::generator());
 
-        DkgParticipant {
+        Ok(DkgParticipant {
             index,
             threshold,
             polynomial,
             commitment,
-        }
+        })
     }
 
-    pub fn generate_shares(&self, num_participants: u64) -> Vec<DkgSharePackage> {
+    /// Evaluates the polynomial at each other participant's index to produce share packages.
+    pub fn generate_shares(
+        &self,
+        num_participants: u64,
+    ) -> Result<Vec<DkgSharePackage>, ShamirError> {
+        if num_participants == 0 {
+            return Err(ShamirError::NoParticipants);
+        }
+
         let mut shares = vec![];
 
         for j in 1..=num_participants {
@@ -65,28 +79,41 @@ impl DkgParticipant {
             }
         }
 
-        shares
+        Ok(shares)
     }
 
+    /// Combines own polynomial evaluation with received shares to derive the final key share,
     pub fn compute_result(
         &self,
         received_shares: &[DkgSharePackage],
         all_commitments: &[Commitment],
-    ) -> DkgResult {
-        let index = self.index;
-        //first, evaluate self polynomial
+    ) -> Result<DkgResult, ShamirError> {
+        for received_share in received_shares {
+            let sender_idx = received_share.sender_index as usize - 1;
+            let commitment = &all_commitments[sender_idx];
+
+            let share = crate::sharing::Share {
+                x: BlsScalar {
+                    value: Fr::from(received_share.receiver_index),
+                },
+                y: received_share.share,
+            };
+
+            if !Commitment::verify(&share, commitment, G1Projective::generator()) {
+                return Err(ShamirError::InvalidShare);
+            }
+        }
+
         let x = BlsScalar {
             value: Fr::from(self.index),
         };
         let evaluated_share = self.polynomial.evaluate(x);
 
-        //next, loop through to sum the key_share
         let mut key_share = evaluated_share;
         for received_share in received_shares {
             key_share = key_share.add(received_share.share);
         }
 
-        //loop through to get the sum verification_commit
         let num_coeffs = all_commitments[0].points.len();
         let mut verification_commitment = vec![];
 
@@ -98,15 +125,14 @@ impl DkgParticipant {
             verification_commitment.push(sum);
         }
 
-        //the group private key will be verification_commit[0]
-        let mut group_public_key = verification_commitment[0];
+        let group_public_key = verification_commitment[0];
 
-        DkgResult {
-            index,
+        Ok(DkgResult {
+            index: self.index,
             key_share,
             group_public_key,
             verification_commitment,
-        }
+        })
     }
 }
 
@@ -116,27 +142,16 @@ mod tests {
     use crate::frost::{PartialSignature, SignerNonce};
     use crate::schnorr::Signature;
 
-    #[test]
-    fn test_dkg_full_flow() {
-        let threshold = 3;
-        let num_participants = 5;
-
-        // 1. Each participant creates their polynomial and commitments
+    fn run_dkg(threshold: usize, num_participants: u64) -> (G1Projective, Vec<DkgResult>) {
         let participants: Vec<DkgParticipant> = (1..=num_participants)
-            .map(|i| DkgParticipant::new(i, threshold))
+            .map(|i| DkgParticipant::new(i, threshold).unwrap())
             .collect();
 
-        // 2. Each participant generates shares for all others
         let all_share_packages: Vec<Vec<DkgSharePackage>> = participants
             .iter()
-            .map(|p| p.generate_shares(num_participants as u64))
+            .map(|p| p.generate_shares(num_participants).unwrap())
             .collect();
 
-        // 3. Collect all commitments
-        let all_commitments: Vec<&Commitment> =
-            participants.iter().map(|p| &p.commitment).collect();
-
-        // 4. Each participant gathers shares sent TO them and computes result
         let mut results = vec![];
         for p in &participants {
             let my_shares: Vec<DkgSharePackage> = all_share_packages
@@ -149,17 +164,18 @@ mod tests {
             let commitments: Vec<Commitment> =
                 participants.iter().map(|p| p.commitment.clone()).collect();
 
-            let result = p.compute_result(&my_shares, &commitments);
+            let result = p.compute_result(&my_shares, &commitments).unwrap();
             results.push(result);
         }
 
-        // 5. All participants should agree on the same group public key
         let group_pk = results[0].group_public_key;
-        for result in &results {
-            assert_eq!(result.group_public_key, group_pk);
-        }
+        (group_pk, results)
+    }
 
-        // 6. Use 3 of 5 key shares to sign with FROSTs
+    #[test]
+    fn test_dkg_full_flow() {
+        let (group_pk, results) = run_dkg(3, 5);
+
         let nonce1 = SignerNonce::generate(1);
         let nonce2 = SignerNonce::generate(2);
         let nonce3 = SignerNonce::generate(3);
@@ -192,44 +208,13 @@ mod tests {
         )
         .unwrap();
 
-        let partial_sigs = vec![ps1, ps2, ps3];
-        let signature = PartialSignature::aggregate(&partial_sigs, &all_nonces).unwrap();
-
-        // 7. Verify the signature against the group public key
+        let signature = PartialSignature::aggregate(&[ps1, ps2, ps3], &all_nonces).unwrap();
         assert!(signature.verify(&group_pk, message));
     }
 
     #[test]
     fn test_dkg_all_agree_on_public_key() {
-        let threshold = 2;
-        let num_participants = 3;
-
-        let participants: Vec<DkgParticipant> = (1..=num_participants)
-            .map(|i| DkgParticipant::new(i, threshold))
-            .collect();
-
-        let all_share_packages: Vec<Vec<DkgSharePackage>> = participants
-            .iter()
-            .map(|p| p.generate_shares(num_participants as u64))
-            .collect();
-
-        let mut results = vec![];
-        for p in &participants {
-            let my_shares: Vec<DkgSharePackage> = all_share_packages
-                .iter()
-                .flatten()
-                .filter(|s| s.receiver_index == p.index)
-                .cloned()
-                .collect();
-
-            let commitments: Vec<Commitment> =
-                participants.iter().map(|p| p.commitment.clone()).collect();
-
-            let result = p.compute_result(&my_shares, &commitments);
-            results.push(result);
-        }
-
-        // Every participant must derive the same group public key
+        let (_, results) = run_dkg(2, 3);
         for i in 1..results.len() {
             assert_eq!(results[0].group_public_key, results[i].group_public_key);
         }
@@ -237,37 +222,8 @@ mod tests {
 
     #[test]
     fn test_dkg_different_signer_subset() {
-        let threshold = 3;
-        let num_participants = 5;
+        let (group_pk, results) = run_dkg(3, 5);
 
-        let participants: Vec<DkgParticipant> = (1..=num_participants)
-            .map(|i| DkgParticipant::new(i, threshold))
-            .collect();
-
-        let all_share_packages: Vec<Vec<DkgSharePackage>> = participants
-            .iter()
-            .map(|p| p.generate_shares(num_participants as u64))
-            .collect();
-
-        let mut results = vec![];
-        for p in &participants {
-            let my_shares: Vec<DkgSharePackage> = all_share_packages
-                .iter()
-                .flatten()
-                .filter(|s| s.receiver_index == p.index)
-                .cloned()
-                .collect();
-
-            let commitments: Vec<Commitment> =
-                participants.iter().map(|p| p.commitment.clone()).collect();
-
-            let result = p.compute_result(&my_shares, &commitments);
-            results.push(result);
-        }
-
-        let group_pk = results[0].group_public_key;
-
-        // Use signers 2, 4, 5 instead of 1, 2, 3
         let nonce2 = SignerNonce::generate(2);
         let nonce4 = SignerNonce::generate(4);
         let nonce5 = SignerNonce::generate(5);
@@ -300,43 +256,13 @@ mod tests {
         )
         .unwrap();
 
-        let partial_sigs = vec![ps2, ps4, ps5];
-        let signature = PartialSignature::aggregate(&partial_sigs, &all_nonces).unwrap();
-
+        let signature = PartialSignature::aggregate(&[ps2, ps4, ps5], &all_nonces).unwrap();
         assert!(signature.verify(&group_pk, message));
     }
 
     #[test]
     fn test_dkg_wrong_message_fails() {
-        let threshold = 3;
-        let num_participants = 5;
-
-        let participants: Vec<DkgParticipant> = (1..=num_participants)
-            .map(|i| DkgParticipant::new(i, threshold))
-            .collect();
-
-        let all_share_packages: Vec<Vec<DkgSharePackage>> = participants
-            .iter()
-            .map(|p| p.generate_shares(num_participants as u64))
-            .collect();
-
-        let mut results = vec![];
-        for p in &participants {
-            let my_shares: Vec<DkgSharePackage> = all_share_packages
-                .iter()
-                .flatten()
-                .filter(|s| s.receiver_index == p.index)
-                .cloned()
-                .collect();
-
-            let commitments: Vec<Commitment> =
-                participants.iter().map(|p| p.commitment.clone()).collect();
-
-            let result = p.compute_result(&my_shares, &commitments);
-            results.push(result);
-        }
-
-        let group_pk = results[0].group_public_key;
+        let (group_pk, results) = run_dkg(3, 5);
 
         let nonce1 = SignerNonce::generate(1);
         let nonce2 = SignerNonce::generate(2);
@@ -368,9 +294,20 @@ mod tests {
         )
         .unwrap();
 
-        let partial_sigs = vec![ps1, ps2, ps3];
-        let signature = PartialSignature::aggregate(&partial_sigs, &all_nonces).unwrap();
-
+        let signature = PartialSignature::aggregate(&[ps1, ps2, ps3], &all_nonces).unwrap();
         assert!(!signature.verify(&group_pk, b"tampered message"));
+    }
+
+    #[test]
+    fn test_dkg_zero_threshold_errors() {
+        let result = DkgParticipant::new(1, 0);
+        assert!(matches!(result, Err(ShamirError::ZeroThresholdNumber)));
+    }
+
+    #[test]
+    fn test_dkg_zero_participants_errors() {
+        let p = DkgParticipant::new(1, 2).unwrap();
+        let result = p.generate_shares(0);
+        assert!(matches!(result, Err(ShamirError::NoParticipants)));
     }
 }
