@@ -1,7 +1,22 @@
 [package]
-name = "shamir-rs"
+name = "shamir-secret"
 version = "0.1.0"
 edition = "2024"
+authors = ["Isaac isaacakhigbe22@gmail.com"]
+description = "Shamir secret is a verifiable secret sharing library with distributed key generation, built for blockchain protocols from first principles in Rust."
+license = "MIT"
+repository = "https://github.com/bourdillion/Shamirs-secret"
+keywords = [
+    "shamir",
+    "secret-sharing",
+    "frost",
+    "threshold-signatures",
+    "bls12-381",
+    "ethereum",
+]
+categories = ["cryptography"]
+readme = "README.md"
+
 
 [dependencies]
 rand = "0.10.1"
