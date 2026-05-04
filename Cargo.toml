@@ -17,3 +17,8 @@ sha2 = "0.10"
 
 [dev-dependencies]
 proptest = "1.11.0"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "benchmarks"
+harness = false
