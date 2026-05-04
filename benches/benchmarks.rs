@@ -3,10 +3,10 @@ use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use ark_bls12_381::{Fr, G1Projective};
 use ark_ec::PrimeGroup;
 
-use shamir_rs::feldman::Commitment;
-use shamir_rs::field::BlsScalar;
-use shamir_rs::frost::{PartialSignature, SignerNonce};
-use shamir_rs::sharing::Share;
+use shamir_secret::feldman::Commitment;
+use shamir_secret::field::BlsScalar;
+use shamir_secret::frost::{PartialSignature, SignerNonce};
+use shamir_secret::sharing::Share;
 
 fn bench_split(c: &mut Criterion) {
     let secret = BlsScalar {
