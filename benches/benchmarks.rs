@@ -2,10 +2,9 @@ use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 
 use ark_bls12_381::{Fr, G1Projective};
 use ark_ec::PrimeGroup;
-use ark_ff::UniformRand;
 
 use shamir_rs::feldman::Commitment;
-use shamir_rs::field::{BlsScalar, Field};
+use shamir_rs::field::BlsScalar;
 use shamir_rs::frost::{PartialSignature, SignerNonce};
 use shamir_rs::sharing::Share;
 

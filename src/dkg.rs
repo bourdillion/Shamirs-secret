@@ -3,7 +3,7 @@ use crate::feldman::Commitment;
 use crate::field::{BlsScalar, Field};
 use crate::polynomial::Polynomial;
 use ark_bls12_381::{Fr, G1Projective};
-use ark_ec::{AdditiveGroup, PrimeGroup};
+use ark_ec::PrimeGroup;
 use ark_ff::{UniformRand, Zero};
 
 /// A share package sent from one DKG participant to another.

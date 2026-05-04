@@ -1,8 +1,8 @@
-mod dkg;
+pub mod dkg;
 mod error;
-mod feldman;
-mod field;
-mod frost;
+pub mod feldman;
+pub mod field;
+pub mod frost;
 mod polynomial;
-mod schnorr;
-mod sharing;
+pub mod schnorr;
+pub mod sharing;
