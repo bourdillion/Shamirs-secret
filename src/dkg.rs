@@ -173,24 +173,27 @@ mod tests {
             &all_nonces,
             &group_pk,
             message,
-        );
+        )
+        .unwrap();
         let ps2 = PartialSignature::sign(
             &all_nonces[1],
             &results[1].key_share.value,
             &all_nonces,
             &group_pk,
             message,
-        );
+        )
+        .unwrap();
         let ps3 = PartialSignature::sign(
             &all_nonces[2],
             &results[2].key_share.value,
             &all_nonces,
             &group_pk,
             message,
-        );
+        )
+        .unwrap();
 
         let partial_sigs = vec![ps1, ps2, ps3];
-        let signature = PartialSignature::aggregate(&partial_sigs, &all_nonces);
+        let signature = PartialSignature::aggregate(&partial_sigs, &all_nonces).unwrap();
 
         // 7. Verify the signature against the group public key
         assert!(signature.verify(&group_pk, message));
@@ -278,24 +281,27 @@ mod tests {
             &all_nonces,
             &group_pk,
             message,
-        );
+        )
+        .unwrap();
         let ps4 = PartialSignature::sign(
             &all_nonces[1],
             &results[3].key_share.value,
             &all_nonces,
             &group_pk,
             message,
-        );
+        )
+        .unwrap();
         let ps5 = PartialSignature::sign(
             &all_nonces[2],
             &results[4].key_share.value,
             &all_nonces,
             &group_pk,
             message,
-        );
+        )
+        .unwrap();
 
         let partial_sigs = vec![ps2, ps4, ps5];
-        let signature = PartialSignature::aggregate(&partial_sigs, &all_nonces);
+        let signature = PartialSignature::aggregate(&partial_sigs, &all_nonces).unwrap();
 
         assert!(signature.verify(&group_pk, message));
     }
@@ -343,24 +349,27 @@ mod tests {
             &all_nonces,
             &group_pk,
             b"real message",
-        );
+        )
+        .unwrap();
         let ps2 = PartialSignature::sign(
             &all_nonces[1],
             &results[1].key_share.value,
             &all_nonces,
             &group_pk,
             b"real message",
-        );
+        )
+        .unwrap();
         let ps3 = PartialSignature::sign(
             &all_nonces[2],
             &results[2].key_share.value,
             &all_nonces,
             &group_pk,
             b"real message",
-        );
+        )
+        .unwrap();
 
         let partial_sigs = vec![ps1, ps2, ps3];
-        let signature = PartialSignature::aggregate(&partial_sigs, &all_nonces);
+        let signature = PartialSignature::aggregate(&partial_sigs, &all_nonces).unwrap();
 
         assert!(!signature.verify(&group_pk, b"tampered message"));
     }

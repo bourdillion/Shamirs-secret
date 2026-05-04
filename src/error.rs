@@ -16,4 +16,22 @@ pub enum ShamirError {
 
     #[error("Modulus must be a prime number")]
     NonPrimeModulus,
+
+    #[error("No nonces provided")]
+    EmptyNonces,
+
+    #[error("No partial signatures provided")]
+    EmptyPartialSignatures,
+
+    #[error("Signer index not found in nonces")]
+    SignerIndexNotFound,
+
+    #[error("Received share failed verification")]
+    InvalidShare,
+
+    #[error("No participants provided")]
+    NoParticipants,
+
+    #[error("Duplicate signer index")]
+    DuplicateSignerIndex,
 }

@@ -1,4 +1,9 @@
-use crate::schnorr::{Signature, compute_challenge};
+use core::error;
+
+use crate::{
+    error::ShamirError,
+    schnorr::{Signature, compute_challenge},
+};
 use ark_bls12_381::{Fr, G1Projective};
 use ark_ec::PrimeGroup;
 use ark_ff::{One, UniformRand, Zero};
@@ -36,7 +41,24 @@ impl PartialSignature {
         all_nonces: &[SignerNonce],
         group_public_key: &G1Projective,
         message: &[u8],
-    ) -> Self {
+    ) -> Result<Self, ShamirError> {
+        //sanity checks
+        if all_nonces.is_empty() {
+            return Err(ShamirError::EmptyNonces);
+        }
+
+        if !all_nonces.iter().any(|n| n.index == nonce.index) {
+            return Err(ShamirError::SignerIndexNotFound);
+        }
+
+        for i in 0..all_nonces.len() {
+            for j in (i + 1)..all_nonces.len() {
+                if all_nonces[i].index == all_nonces[j].index {
+                    return Err(ShamirError::DuplicateSignerIndex);
+                }
+            }
+        }
+
         // Sum all public nonces into one R
         let mut r = all_nonces[0].nonce;
         for n in &all_nonces[1..] {
@@ -59,13 +81,24 @@ impl PartialSignature {
         // Compute partial signature: s_i = k_i + c * lambda * key_share
         let s_i = nonce.secret_nonce + c * lambda * key_share;
 
-        PartialSignature {
+        Ok(PartialSignature {
             index: nonce.index,
             response: s_i,
-        }
+        })
     }
 
-    pub fn aggregate(partial_sigs: &[PartialSignature], all_nonces: &[SignerNonce]) -> Signature {
+    pub fn aggregate(
+        partial_sigs: &[PartialSignature],
+        all_nonces: &[SignerNonce],
+    ) -> Result<Signature, ShamirError> {
+        //sanity checks
+        if partial_sigs.is_empty() {
+            return Err(ShamirError::EmptyPartialSignatures);
+        }
+
+        if all_nonces.is_empty() {
+            return Err(ShamirError::EmptyNonces);
+        }
         // Sum all public nonces into one R
         let mut r = all_nonces[0].nonce;
         for n in &all_nonces[1..] {
@@ -78,10 +111,10 @@ impl PartialSignature {
             s = s + ps.response;
         }
 
-        Signature {
+        Ok(Signature {
             nonce: r,
             response: s,
-        }
+        })
     }
 }
 
@@ -95,18 +128,15 @@ mod tests {
 
     #[test]
     fn test_frost_full_flow() {
-        // 1. Create group private key and derive group public key
         let group_private_key = Fr::from(42u64);
         let group_public_key = G1Projective::generator() * group_private_key;
 
-        // 2. Split private key into 5 shares (threshold = 3)
         let secret = BlsScalar {
             value: group_private_key,
         };
         let (shares, _commitment) =
             Commitment::split_with_commitments(secret, 3, 5, G1Projective::generator()).unwrap();
 
-        // 3. Pick signers 1, 2, 3 and generate nonces (Round 1)
         let nonce1 = SignerNonce::generate(1);
         let nonce2 = SignerNonce::generate(2);
         let nonce3 = SignerNonce::generate(3);
@@ -114,7 +144,6 @@ mod tests {
 
         let message = b"send 1 ETH to Bob";
 
-        // 4. Each signer computes partial signature (Round 2)
         //    Share indices match nonce indices: share[0] has x=1, share[1] has x=2, etc.
         let ps1 = PartialSignature::sign(
             &all_nonces[0],
@@ -122,27 +151,28 @@ mod tests {
             &all_nonces,
             &group_public_key,
             message,
-        );
+        )
+        .unwrap();
         let ps2 = PartialSignature::sign(
             &all_nonces[1],
             &shares[1].y.value,
             &all_nonces,
             &group_public_key,
             message,
-        );
+        )
+        .unwrap();
         let ps3 = PartialSignature::sign(
             &all_nonces[2],
             &shares[2].y.value,
             &all_nonces,
             &group_public_key,
             message,
-        );
+        )
+        .unwrap();
 
-        // 5. Aggregate partial signatures into one Schnorr signature
         let partial_sigs = vec![ps1, ps2, ps3];
-        let signature = PartialSignature::aggregate(&partial_sigs, &all_nonces);
+        let signature = PartialSignature::aggregate(&partial_sigs, &all_nonces).unwrap();
 
-        // 6. Verify using standard Schnorr verification
         assert!(signature.verify(&group_public_key, message));
     }
 
@@ -168,24 +198,27 @@ mod tests {
             &all_nonces,
             &group_public_key,
             b"send 1 ETH",
-        );
+        )
+        .unwrap();
         let ps2 = PartialSignature::sign(
             &all_nonces[1],
             &shares[1].y.value,
             &all_nonces,
             &group_public_key,
             b"send 1 ETH",
-        );
+        )
+        .unwrap();
         let ps3 = PartialSignature::sign(
             &all_nonces[2],
             &shares[2].y.value,
             &all_nonces,
             &group_public_key,
             b"send 1 ETH",
-        );
+        )
+        .unwrap();
 
         let partial_sigs = vec![ps1, ps2, ps3];
-        let signature = PartialSignature::aggregate(&partial_sigs, &all_nonces);
+        let signature = PartialSignature::aggregate(&partial_sigs, &all_nonces).unwrap();
 
         // Verify against a DIFFERENT message should fail
         assert!(!signature.verify(&group_public_key, b"send 100 ETH"));
@@ -216,25 +249,44 @@ mod tests {
             &all_nonces,
             &group_public_key,
             message,
-        );
+        )
+        .unwrap();
         let ps4 = PartialSignature::sign(
             &all_nonces[1],
             &shares[3].y.value,
             &all_nonces,
             &group_public_key,
             message,
-        );
+        )
+        .unwrap();
         let ps5 = PartialSignature::sign(
             &all_nonces[2],
             &shares[4].y.value,
             &all_nonces,
             &group_public_key,
             message,
-        );
+        )
+        .unwrap();
 
         let partial_sigs = vec![ps2, ps4, ps5];
-        let signature = PartialSignature::aggregate(&partial_sigs, &all_nonces);
+        let signature = PartialSignature::aggregate(&partial_sigs, &all_nonces).unwrap();
 
         assert!(signature.verify(&group_public_key, message));
+    }
+
+    #[test]
+    fn test_sign_empty_nonces_errors() {
+        let nonce = SignerNonce::generate(1);
+        let key = Fr::from(42u64);
+        let pk = G1Projective::generator() * key;
+        let result = PartialSignature::sign(&nonce, &key, &[], &pk, b"test");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_aggregate_empty_sigs_errors() {
+        let nonces = vec![SignerNonce::generate(1)];
+        let result = PartialSignature::aggregate(&[], &nonces);
+        assert!(result.is_err());
     }
 }
