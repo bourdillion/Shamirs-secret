@@ -4,14 +4,14 @@ use ark_ff::{PrimeField, UniformRand};
 use sha2::{Digest, Sha256};
 
 /// A Schnorr keypair over BLS12-381 G1.
-struct KeyPair {
+pub struct KeyPair {
     private_key: Fr,
     public_key: G1Projective,
 }
 
 impl KeyPair {
     /// Generates a random keypair. x ← random, X = x * G.
-    fn generate() -> KeyPair {
+    pub fn generate() -> KeyPair {
         let mut rng = rand_core::OsRng;
         let private_key = Fr::rand(&mut rng);
         let public_key = G1Projective::generator() * private_key;

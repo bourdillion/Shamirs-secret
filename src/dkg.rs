@@ -9,26 +9,26 @@ use ark_ff::{UniformRand, Zero};
 /// A share package sent from one DKG participant to another.
 #[derive(Clone, Debug)]
 pub struct DkgSharePackage {
-    sender_index: u64,
-    receiver_index: u64,
+    pub sender_index: u64,
+    pub receiver_index: u64,
     pub share: BlsScalar,
 }
 
 /// The final output each participant derives after the DKG protocol completes.
 #[derive(Clone, Debug)]
-struct DkgResult {
-    index: u64,
-    key_share: BlsScalar,
-    group_public_key: G1Projective,
-    verification_commitment: Vec<G1Projective>,
+pub struct DkgResult {
+    pub index: u64,
+    pub key_share: BlsScalar,
+    pub group_public_key: G1Projective,
+    pub verification_commitment: Vec<G1Projective>,
 }
 
 /// A participant in the DKG protocol holding a random polynomial and its Feldman commitment.
-struct DkgParticipant {
+pub struct DkgParticipant {
     index: u64,
-    threshold: usize,
+    pub threshold: usize,
     polynomial: Polynomial<BlsScalar>,
-    commitment: Commitment,
+    pub commitment: Commitment,
 }
 
 impl DkgParticipant {
@@ -140,7 +140,6 @@ impl DkgParticipant {
 mod tests {
     use super::*;
     use crate::frost::{PartialSignature, SignerNonce};
-    use crate::schnorr::Signature;
 
     fn run_dkg(threshold: usize, num_participants: u64) -> (G1Projective, Vec<DkgResult>) {
         let participants: Vec<DkgParticipant> = (1..=num_participants)

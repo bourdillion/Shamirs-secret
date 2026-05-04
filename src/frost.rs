@@ -1,12 +1,10 @@
-use core::error;
-
 use crate::{
     error::ShamirError,
     schnorr::{Signature, compute_challenge},
 };
 use ark_bls12_381::{Fr, G1Projective};
 use ark_ec::PrimeGroup;
-use ark_ff::{One, UniformRand, Zero};
+use ark_ff::UniformRand;
 
 /// A signer's nonce for one round of FROST signing.
 pub struct SignerNonce {
@@ -33,7 +31,7 @@ impl SignerNonce {
 
 /// partial signature produced by one FROST signer.
 pub struct PartialSignature {
-    index: u64,
+    pub index: u64,
     response: Fr,
 }
 
@@ -127,9 +125,7 @@ impl PartialSignature {
 mod tests {
     use super::*;
     use crate::feldman::Commitment;
-    use crate::field::{BlsScalar, Field};
-    use crate::schnorr::Signature;
-    use crate::sharing::Share;
+    use crate::field::BlsScalar;
 
     #[test]
     fn test_frost_full_flow() {

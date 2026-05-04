@@ -2,8 +2,7 @@ use crate::error::ShamirError;
 use crate::field::{BlsScalar, Field};
 use crate::polynomial::Polynomial;
 use crate::sharing::Share;
-use ark_bls12_381::{Fr, G1Projective};
-use ark_ec::{CurveGroup, PrimeGroup};
+use ark_bls12_381::G1Projective;
 
 /// Feldman commitment to a polynomial, enabling verifiable secret sharing.
 #[derive(Clone)]
@@ -88,6 +87,8 @@ impl Commitment {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ark_bls12_381::Fr;
+    use ark_ec::PrimeGroup;
 
     #[test]
     fn test_feldman_verify_valid_shares() {
