@@ -10,7 +10,7 @@ pub struct Commitment {
 }
 
 impl Commitment {
-    fn commit(poly: &Polynomial<BlsScalar>, generator: G1Projective) -> Commitment {
+    pub fn commit(poly: &Polynomial<BlsScalar>, generator: G1Projective) -> Commitment {
         let mut result = Vec::new();
 
         for coefficient in poly.get_coefficients() {
