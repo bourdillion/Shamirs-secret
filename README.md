@@ -9,3 +9,30 @@ It is a verifiable secret sharing, distributed key generation, and threshold Sch
 5. L2s rollup sequencer that are moving from single sequencers to committees, this library let them have a single signature posted to L1 rather than an aggregated multisig.
 6. Anyone building a tool that a group of parties needs to collectively control a single key without any one party holding it alone.
 
+## What's inside
+- Shamir Secret Sharing with split and Lagrange reconstruction
+- Feldman Verifiable Secret Sharing with polynomial commitments over G1
+- Schnorr Signatures on BLS12-381 G1
+- FROST Threshold Signatures following the sign/aggregate pattern
+- Distributed Key Generation (DKG) with Feldman commitment verification
+- Finite field abstraction with a simple u64 mod-prime field for learning and BLS12-381 scalars for production
+
+## Usage
+Add to your `Cargo.toml` and build;
+ 
+```toml
+[dependencies]
+shamir-rs = "0.1"
+```
+
+## Benchmarks
+ 
+```bash
+cargo bench
+```
+
+## Security
+ 
+**This crate has not been audited.**. Do not use it in production systems that handle real secrets or real value.
+ 
+
