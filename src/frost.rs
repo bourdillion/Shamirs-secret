@@ -8,9 +8,11 @@ use ark_bls12_381::{Fr, G1Projective};
 use ark_ec::PrimeGroup;
 use ark_ff::{One, UniformRand, Zero};
 
+/// A signer's nonce for one round of FROST signing.
 pub struct SignerNonce {
     index: u64,
     secret_nonce: Fr,
+    /// Public commitment R = k * G, that is broadcast to all signers.
     nonce: G1Projective,
 }
 
@@ -29,12 +31,14 @@ impl SignerNonce {
     }
 }
 
+/// partial signature produced by one FROST signer.
 pub struct PartialSignature {
     index: u64,
     response: Fr,
 }
 
 impl PartialSignature {
+    /// Computes a partial FROST signature using the signer's key share.
     pub fn sign(
         nonce: &SignerNonce,
         key_share: &Fr,
@@ -87,6 +91,7 @@ impl PartialSignature {
         })
     }
 
+    /// Combines partial signatures into a final Schnorr signature.
     pub fn aggregate(
         partial_sigs: &[PartialSignature],
         all_nonces: &[SignerNonce],
