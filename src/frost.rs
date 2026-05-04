@@ -3,14 +3,14 @@ use ark_bls12_381::{Fr, G1Projective};
 use ark_ec::PrimeGroup;
 use ark_ff::{One, UniformRand, Zero};
 
-struct SignerNonce {
+pub struct SignerNonce {
     index: u64,
     secret_nonce: Fr,
     nonce: G1Projective,
 }
 
 impl SignerNonce {
-    fn generate(index: u64) -> SignerNonce {
+    pub fn generate(index: u64) -> SignerNonce {
         let mut rng = rand_core::OsRng;
         let secret_nonce = Fr::rand(&mut rng);
 
@@ -24,7 +24,7 @@ impl SignerNonce {
     }
 }
 
-struct PartialSignature {
+pub struct PartialSignature {
     index: u64,
     response: Fr,
 }
